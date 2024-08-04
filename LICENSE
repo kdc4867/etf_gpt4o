@@ -1,0 +1,58 @@
+## License / 저작권 및 라이선스
+This project is for non-commercial use only and follows the MIT License. Commercial use is strictly prohibited. See the [LICENSE](LICENSE) file for details. / 이 프로젝트는 비상업적 사용만을 허용하며, MIT 라이선스를 따릅니다. 상업적 사용은 엄격히 금지됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
+
+## Contact / 연락처
+If you have any questions or inquiries about this project, please contact: / 이 프로젝트에 대한 질문이나 문의사항이 있으시면 아래 연락처로 연락주세요:
+- Email / 이메일: kdc4867@gmail.com
+- GitHub: [kdc4867](https://github.com/kdc4867)
+
+## Contributing / 기여 방법
+Contributions are welcome! If you have any ideas for improvements or new features, please open an issue or submit a pull request. / 기여를 환영합니다! 개선 사항이나 새로운 기능에 대한 아이디어가 있다면 이슈를 열거나 풀 리퀘스트를 제출해주세요.
+
+## Acknowledgements / 감사의 말
+- [Streamlit](https://streamlit.io/)
+- [yFinance](https://pypi.org/project/yfinance/)
+- [OpenAI](https://www.openai.com/)
+```
+
+### LICENSE
+
+```markdown
+MIT License
+
+Copyright (c) 2024 [Your Name]
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+**The software is provided "as is", without warranty of any kind, express or
+implied, including but not limited to the warranties of merchantability,
+fitness for a particular purpose and noninfringement. In no event shall the
+authors or copyright holders be liable for any claim, damages or other
+liability, whether in an action of contract, tort or otherwise, arising from,
+out of or in connection with the software or the use or other dealings in the
+software.**
+
+**Commercial use of this software is strictly prohibited.**
+
+---
+
+MIT 라이선스
+
+저작권 (c) 2024 [Your Name]
+
+이 소프트웨어 및 관련 문서 파일(이하 "소프트웨어")의 사본을 취득하는 모든 사람에게 소프트웨어를 제한 없이 사용하는 권한을 무료로 부여합니다. 여기에는 사용, 복사, 수정, 병합, 게시, 배포, 서브라이센스 및 소프트웨어의 사본을 판매할 권리가 포함됩니다. 단, 다음 조건을 충족해야 합니다:
+
+위의 저작권 표시 및 이 권한 부여 공지는 소프트웨어의 모든 사본 또는 주요 부분에 포함되어야 합니다.
+
+**이 소프트웨어는 "있는 그대로" 제공되며, 명시적이든 묵시적이든 어떠한 종류의 보증도 포함하지 않습니다. 여기에는 상품성, 특정 목적에의 적합성 및 비침해에 대한 보증이 포함되지만 이에 국한되지 않습니다. 저자 또는 저작권 보유자는 소프트웨어 또는 소프트웨어의 사용 또는 기타 거래와 관련하여 발생하는 모든 청구, 손해 또는 기타 책임에 대해 계약, 불법 행위 또는 기타 행위로 인해 책임을 지지 않습니다.**
+
+**이 소프트웨어의 상업적 사용은 엄격히 금지됩니다.**
+```
