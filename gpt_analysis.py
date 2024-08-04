@@ -74,11 +74,25 @@ def analyze_macro_correlation(correlation_data):
     prompt = f"""
 Given the following correlation data between the ETF and macroeconomic indicators: {correlation_data}
 
-1. Interpret the correlation between each macroeconomic indicator and the ETF specifically.
-2. Explain how these correlations might influence investment decisions.
-3. Analyze the outlook for this ETF considering the current economic situation.
-4. Predict changes in key macroeconomic indicators over the next 6 months and forecast the ETF's performance accordingly.
-5. Suggest how this ETF might play a role in hedging macroeconomic risks in a portfolio.
+Please provide a comprehensive analysis in Korean, addressing the following points:
+
+1. Interpret the correlation between each macroeconomic indicator (S&P 500, 10Y Treasury Yield, VIX, Gold, Oil, USD Index) and the ETF specifically. Explain the strength and direction of each correlation.
+
+2. Analyze how these correlations might change under different market conditions (e.g., bull market, bear market, high inflation, low interest rates). Consider potential non-linear relationships.
+
+3. Explain how these correlations might influence investment decisions. Provide specific examples of how an investor might use this information.
+
+4. Considering the current economic situation and the observed correlations:
+   a) Analyze the short-term (3-6 months) outlook for this ETF.
+   b) Analyze the long-term (1-3 years) outlook for this ETF.
+
+5. Based on historical trends and current economic indicators, predict potential changes in key macroeconomic indicators over the next 6 months. Then, forecast how these changes might affect the ETF's performance.
+
+6. Suggest how this ETF might play a role in hedging macroeconomic risks in a portfolio. Provide examples of specific economic scenarios where this ETF could be particularly useful.
+
+7. Discuss any limitations of this correlation-based analysis and suggest additional factors or data that could provide a more comprehensive understanding of the ETF's relationship with macroeconomic conditions.
+
+Please ensure your analysis is detailed, nuanced, and provides actionable insights for investors.
 """
     return get_gpt_analysis(prompt)
 
