@@ -4,8 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 import streamlit as st
-from visualizations import plot_price_performance, plot_factor_exposure, plot_correlation_heatmap, plot_investment_style
-
+from visualizations import plot_price_performance, plot_factor_exposure, plot_correlation_heatmap, plot_investment_style, plot_high_correlation_network
+import networkx as nx
 def analyze_etf(data, ticker):
     daily_returns = data['Adj Close'].pct_change()
     annualized_return = (daily_returns.mean() * 252) * 100
@@ -63,8 +63,14 @@ def analyze_factor_exposure(etf_ticker, start_date, end_date):
             'Size': 'IWM',      # Russell 2000 (소형주)
             'Value': 'IWD',     # Russell 1000 Value (가치주)
             'Growth': 'IWF',    # Russell 1000 Growth (성장주)
-            'Momentum': 'MTUM'  # iShares MSCI USA Momentum Factor ETF
-        }
+            'Momentum': 'MTUM', # iShares MSCI USA Momentum Factor ETF
+            'Quality': 'QUAL',  # iShares MSCI USA Quality Factor ETF
+            'Low Volatility': 'USMV',  # iShares MSCI USA Min Vol Factor ETF
+            'Dividend': 'DVY',  # iShares Select Dividend ETF
+            'High Yield': 'HYG',  # iShares iBoxx $ High Yield Corporate Bond ETF
+            'International': 'EFA',  # iShares MSCI EAFE ETF
+            'Emerging Markets': 'EEM'  # iShares MSCI Emerging Markets ETF
+    }
 
         factor_data = pd.DataFrame()
         for factor, ticker in factor_tickers.items():
@@ -188,6 +194,9 @@ def compare_etfs(etf_tickers, start_date, end_date):
 
     st.dataframe(styled_df)
 
+import networkx as nx
+import numpy as np
+
 def analyze_macro_market_correlation(etf_ticker, start_date, end_date):
     try:
         etf_data = yf.download(etf_ticker, start=start_date, end=end_date, interval='1d')
@@ -202,7 +211,14 @@ def analyze_macro_market_correlation(etf_ticker, start_date, end_date):
             'VIX': '^VIX',
             'Gold': 'GC=F',
             'Oil': 'CL=F',
-            'USD Index': 'DX-Y.NYB'
+            'USD Index': 'DX-Y.NYB',
+            'Inflation Expectation (5Y)': '^FVX',
+            'High Yield Bonds': 'HYG',
+            'Emerging Markets': 'EEM',
+            'Real Estate': 'VNQ',
+            'Investment Grade Bonds': 'LQD',
+            'Developed Markets': 'EFA',
+            'Commodities': 'DBC'
         }
         
         indicator_data = pd.DataFrame()
@@ -232,5 +248,20 @@ def analyze_macro_market_correlation(etf_ticker, start_date, end_date):
         etf_correlation = correlation[etf_ticker].sort_values(ascending=False)
         st.write(f"\n{etf_ticker}와 각 지표간의 상관관계:")
         st.write(etf_correlation)
+
+        # 상관계수가 0.75 이상인 관계 추출
+        high_correlation = correlation.where(np.abs(correlation) >= 0.75).stack().reset_index()
+        high_correlation.columns = ['Factor1', 'Factor2', 'Correlation']
+        high_correlation = high_correlation[high_correlation['Factor1'] != high_correlation['Factor2']]
+        high_correlation = high_correlation.drop_duplicates(subset=['Factor1', 'Factor2'])
+
+        # 네트워크 그래프 생성
+        G = nx.Graph()
+        for _, row in high_correlation.iterrows():
+            G.add_edge(row['Factor1'], row['Factor2'], weight=row['Correlation'])
+
+        plot_high_correlation_network(G, etf_ticker)
+
     except Exception as e:
         st.error(f"매크로 및 마켓 상황 연관성 분석 중 오류 발생: {str(e)}")
+        st.error(f"오류 상세: {type(e).__name__}, {str(e)}")

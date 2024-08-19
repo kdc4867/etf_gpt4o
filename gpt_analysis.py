@@ -48,14 +48,15 @@ Based on the following risk and benchmark analysis data for the ETF: {risk_data}
 
 def analyze_factor_exposure(factor_data):
     prompt = f"""
-Given the following factor exposure analysis results for the ETF: {factor_data}
+    Given the following factor exposure analysis results for the ETF: {factor_data}
 
-1. Explain the exposure to each factor (e.g., market, size, value, momentum) in detail.
-2. Interpret what this factor exposure means from an investment strategy perspective.
-3. Analyze how this factor exposure might affect the ETF's performance.
-4. Explain the pros and cons of this factor exposure in the current market situation.
-5. Considering this ETF's factor exposure, suggest what type of portfolio it would be suitable for.
-"""
+    1. Explain the exposure to each factor (market, size, value, growth, momentum, quality, low volatility, dividend, high yield, international, emerging markets) in detail.
+    2. Interpret what this factor exposure means from an investment strategy perspective.
+    3. Analyze how this factor exposure might affect the ETF's performance in different market conditions.
+    4. Explain the pros and cons of this factor exposure in the current market situation.
+    5. Considering this ETF's factor exposure, suggest what type of portfolio it would be suitable for.
+    6. Discuss how this ETF's factor exposure compares to its peers or the broader market.
+    """
     return get_gpt_analysis(prompt)
 
 def compare_etfs(comparison_data):
@@ -72,28 +73,18 @@ Based on the following comparison data for multiple ETFs: {comparison_data}
 
 def analyze_macro_correlation(correlation_data):
     prompt = f"""
-Given the following correlation data between the ETF and macroeconomic indicators: {correlation_data}
+    Given the following correlation data between the ETF and macroeconomic indicators: {correlation_data}
 
-Please provide a comprehensive analysis in Korean, addressing the following points:
+    Please provide a comprehensive analysis in Korean, addressing the following points:
 
-1. Interpret the correlation between each macroeconomic indicator (S&P 500, 10Y Treasury Yield, VIX, Gold, Oil, USD Index) and the ETF specifically. Explain the strength and direction of each correlation.
-
-2. Analyze how these correlations might change under different market conditions (e.g., bull market, bear market, high inflation, low interest rates). Consider potential non-linear relationships.
-
-3. Explain how these correlations might influence investment decisions. Provide specific examples of how an investor might use this information.
-
-4. Considering the current economic situation and the observed correlations:
-   a) Analyze the short-term (3-6 months) outlook for this ETF.
-   b) Analyze the long-term (1-3 years) outlook for this ETF.
-
-5. Based on historical trends and current economic indicators, predict potential changes in key macroeconomic indicators over the next 6 months. Then, forecast how these changes might affect the ETF's performance.
-
-6. Suggest how this ETF might play a role in hedging macroeconomic risks in a portfolio. Provide examples of specific economic scenarios where this ETF could be particularly useful.
-
-7. Discuss any limitations of this correlation-based analysis and suggest additional factors or data that could provide a more comprehensive understanding of the ETF's relationship with macroeconomic conditions.
-
-Please ensure your analysis is detailed, nuanced, and provides actionable insights for investors.
-"""
+    1. Interpret the correlation between each macroeconomic indicator (S&P 500, 10Y Treasury Yield, VIX, Gold, Oil, USD Index, Inflation Expectation, Real Estate, Consumer Sentiment, Manufacturing PMI, Unemployment Rate, Corporate Bond Spread) and the ETF specifically.
+    2. Analyze how these correlations might change under different market conditions (e.g., economic expansion, recession, high inflation, low interest rates).
+    3. Explain how these correlations might influence investment decisions. Provide specific examples of how an investor might use this information.
+    4. Considering the current economic situation and the observed correlations, analyze the short-term (3-6 months) and long-term (1-3 years) outlook for this ETF.
+    5. Based on historical trends and current economic indicators, predict potential changes in key macroeconomic indicators over the next 6-12 months. Then, forecast how these changes might affect the ETF's performance.
+    6. Suggest how this ETF might play a role in hedging macroeconomic risks in a portfolio.
+    7. Discuss any limitations of this correlation-based analysis and suggest additional factors or data that could provide a more comprehensive understanding of the ETF's relationship with macroeconomic conditions.
+    """
     return get_gpt_analysis(prompt)
 
 def get_etf_recommendation(etf_data, risk_profile):
