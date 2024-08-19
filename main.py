@@ -1,6 +1,7 @@
 ###main.py
 import streamlit as st
 import pandas as pd
+import networkx as nx
 from data_loader import load_data
 from etf_analysis import analyze_etf, analyze_risk_and_benchmark, analyze_factor_exposure, compare_etfs, analyze_macro_market_correlation
 from gpt_analysis import analyze_etf_performance, analyze_risk_and_benchmark as gpt_analyze_risk, analyze_factor_exposure as gpt_analyze_factor, compare_etfs as gpt_compare_etfs, analyze_macro_correlation, get_etf_recommendation, predict_etf_performance
@@ -12,9 +13,9 @@ st.title("ETF 분석 대시보드")
 
 # 사이드바 설정
 ticker = st.sidebar.text_input("ETF 티커 입력", value="SPY")
-start_date = st.sidebar.date_input("시작 날짜", value=pd.to_datetime("2023-01-01"))
-end_date = st.sidebar.date_input("종료 날짜", value=pd.to_datetime("2023-12-31"))
-benchmark_ticker = st.sidebar.selectbox("벤치마크", options=["^GSPC", "^DJI", "^IXIC"], index=0)
+start_date = st.sidebar.date_input("시작 날짜", value=pd.to_datetime("2022-01-01"))
+end_date = st.sidebar.date_input("종료 날짜", value=pd.to_datetime("2024-07-31"))
+benchmark_ticker = st.sidebar.text_input("벤치마크 티커 입력", value="^GSPC")
 
 try:
     # 데이터 로드

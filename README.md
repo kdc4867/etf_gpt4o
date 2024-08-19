@@ -71,5 +71,3 @@ git commit -m "Add bilingual README and LICENSE files"
 # 변경 사항 푸시
 git push origin master
 ```
-
-이렇게 하면 프로젝트가 GitHub에 안전하게 공개되고, 상업적 사용이 금지된다는 내용을 명확히 포함할 수 있습니다. 추가로 도움이 필요하면 언제든지 말씀해 주세요!
