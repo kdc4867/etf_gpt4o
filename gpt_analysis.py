@@ -8,6 +8,48 @@ load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+def analyze_portfolio_gpt(portfolio_data, performance_metrics, risk_metrics):
+    """GPT를 사용하여 포트폴리오를 분석합니다."""
+    prompt = f"""
+    Given the following portfolio data and metrics:
+    
+    Portfolio composition:
+    {', '.join([f"{etf}: {data['weight']*100:.2f}%" for etf, data in portfolio_data.items()])}
+    
+    Performance metrics:
+    Annual Return: {performance_metrics['Annual Return']*100:.2f}%
+    Annual Volatility: {performance_metrics['Annual Volatility']*100:.2f}%
+    Sharpe Ratio: {performance_metrics['Sharpe Ratio']:.2f}
+    
+    Risk metrics:
+    Beta: {risk_metrics['Beta']:.2f}
+    Alpha: {risk_metrics['Alpha']*100:.2f}%
+    Max Drawdown: {risk_metrics['Max Drawdown']*100:.2f}%
+    Value at Risk (95%): {risk_metrics['Value at Risk (95%)']*100:.2f}%
+    
+    Please provide a comprehensive analysis of this portfolio, including:
+    1. An overview of the portfolio's performance and risk profile
+    2. Strengths and weaknesses of the current asset allocation
+    3. Suggestions for potential improvements or rebalancing
+    4. Any notable trends or patterns in the portfolio's behavior
+    5. Recommendations for the investor based on this analysis
+    
+    Please structure your response in clear sections and provide specific, actionable advice.
+    """
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a highly experienced financial analyst specializing in ETF portfolio analysis. Provide your analysis in Korean, ensuring it is clear, concise, and tailored for both novice and experienced investors."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"Error in GPT analysis: {str(e)}")
+        return "GPT 분석 중 오류가 발생했습니다. 나중에 다시 시도해 주세요."
+
 def get_gpt_analysis(prompt):
     try:
         response = client.chat.completions.create(
