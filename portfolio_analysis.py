@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 from scipy.optimize import minimize
-from gpt_analysis import analyze_portfolio_gpt
+
 def analyze_portfolio(portfolio_df, start_date, end_date):
     """포트폴리오 데이터를 분석하고 각 ETF의 수익률 데이터를 반환합니다."""
     portfolio_data = {}

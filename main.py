@@ -1,12 +1,13 @@
 import streamlit as st
 import pandas as pd
+import yfinance as yf
 import plotly.graph_objs as go
 from data_loader import load_data
 from etf_analysis import analyze_etf, analyze_risk_and_benchmark, analyze_factor_exposure, compare_etfs, analyze_macro_market_correlation
 from gpt_analysis import analyze_etf_performance, analyze_risk_and_benchmark as gpt_analyze_risk, analyze_factor_exposure as gpt_analyze_factor, compare_etfs as gpt_compare_etfs, analyze_macro_correlation, get_etf_recommendation, predict_etf_performance
 from visualizations import (
     plot_price_performance, plot_risk_metrics, plot_factor_exposure, 
-    plot_etf_comparison, plot_macro_correlation, plot_gpt_analysis,
+    plot_etf_comparison, plot_macro_correlation,
     plot_portfolio_summary, plot_cumulative_returns, plot_asset_allocation, plot_efficient_frontier
 )
 from portfolio_analysis import analyze_portfolio, calculate_portfolio_performance, analyze_risk, analyze_asset_allocation, optimize_portfolio
@@ -166,12 +167,18 @@ else:
 
         with tab2:
             st.header("성과 분석")
+            st.write("연간 수익률: {:.2f}%".format(performance_metrics['Annual Return'] * 100))
+            st.write("연간 변동성: {:.2f}%".format(performance_metrics['Annual Volatility'] * 100))
+            st.write("샤프 비율: {:.2f}".format(performance_metrics['Sharpe Ratio']))
             plot_cumulative_returns(portfolio_data)
-            st.write(performance_metrics)
 
         with tab3:
             st.header("리스크 분석")
-            st.write(risk_metrics)
+            st.write("베타: {:.4f}".format(risk_metrics['Beta']))
+            st.write("알파: {:.2f}%".format(risk_metrics['Alpha'] * 100))
+            st.write("최대 낙폭: {:.2f}%".format(risk_metrics['Max Drawdown'] * 100))
+            st.write("Value at Risk (95%): {:.2f}%".format(risk_metrics['Value at Risk (95%)'] * 100))
+
 
         with tab4:
             st.header("자산 배분")

@@ -1,4 +1,3 @@
-###gpt_analysis.py
 from openai import OpenAI
 import streamlit as st
 import os
@@ -68,7 +67,7 @@ def analyze_etf_performance(etf_data):
     prompt = f"""
 Given the following ETF performance data: {etf_data}
 
-1. Analyze the ETF's performnace based on this data.
+1. Analyze the ETF's performance based on this data.
 2. Specifically mention key performance indicators (e.g., annual return, volatility, Sharpe ratio).
 3. Clearly explain the strengths and weaknesses of this ETF.
 4. Provide 3 actionable insights that would be valuable for investors.
@@ -140,19 +139,17 @@ And considering an investor with a {risk_profile} risk profile,
 4. Suggest what role this ETF could play in the investor's portfolio.
 5. Advise on 3 points to be cautious about when investing in this ETF in the current market conditions.
 """
-    
     return get_gpt_analysis(prompt)
 
 def predict_etf_performance(etf_data, market_conditions):
     prompt = f"""
-"Given the following ETF data: {etf_data}
+Given the following ETF data: {etf_data}
 And considering these market conditions: {market_conditions}
 
 1. Predict the expected performance of this ETF over the next 6-12 months with specific figures (e.g., expected return range).
 2. Explain 3 scenarios that could positively impact this ETF's performance and 3 that could negatively impact it.
 3. Analyze how the volatility and risk level of this ETF are expected to change.
 4. Explain whether it's appropriate to include this ETF in a current portfolio and why.
-5. Advise on investment strategies or timing to maximize the performance of this ETF."
+5. Advise on investment strategies or timing to maximize the performance of this ETF.
 """
-    
     return get_gpt_analysis(prompt)
