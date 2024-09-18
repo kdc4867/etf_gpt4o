@@ -12,13 +12,11 @@ def analyze_etf(data, ticker):
     sharpe_ratio = (annualized_return - risk_free_rate) / annualized_volatility
     
     etf = yf.Ticker(ticker)
-    expense_ratio = etf.info.get('expenseRatio', 'N/A')
-    
+    #경비 비율 제거
     etf_info = {
         "연간 수익률": f"{annualized_return:.2f}%",
         "연간 변동성": f"{annualized_volatility:.2f}%",
         "샤프 비율": f"{sharpe_ratio:.2f}",
-        "경비 비율": expense_ratio
     }
     
     return etf_info
