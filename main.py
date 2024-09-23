@@ -3,23 +3,24 @@ import pandas as pd
 import yfinance as yf
 import time
 from functools import lru_cache
-import plotly.graph_objs as go
 from data_loader import load_data
 from etf_analysis import analyze_etf, analyze_risk_and_benchmark, analyze_factor_exposure, compare_etfs, analyze_macro_market_correlation
-from gpt_analysis import analyze_etf_performance, analyze_risk_and_benchmark as gpt_analyze_risk, analyze_factor_exposure as gpt_analyze_factor, compare_etfs as gpt_compare_etfs, analyze_macro_correlation, get_etf_recommendation, predict_etf_performance, analyze_portfolio_gpt
+from gpt_analysis import analyze_etf_performance, analyze_risk_and_benchmark as gpt_analyze_risk, analyze_factor_exposure as gpt_analyze_factor, compare_etfs as gpt_compare_etfs, analyze_macro_correlation, get_etf_recommendation, predict_etf_performance, analyze_financials_with_gpt
+
 from visualizations import (
     plot_price_performance, plot_risk_metrics, plot_factor_exposure, 
     plot_etf_comparison, plot_macro_correlation,
     plot_portfolio_summary, plot_cumulative_returns, plot_asset_allocation, plot_efficient_frontier
 )
 from portfolio_analysis import analyze_portfolio, calculate_portfolio_performance, analyze_risk, analyze_asset_allocation, optimize_portfolio
+from financial_dashboard import load_ticker_data, display_financial_info
 
 @lru_cache(maxsize=100)
 def get_etf_price(ticker, max_retries=3, cache_time=900):
     for attempt in range(max_retries):
         try:
             etf_data = yf.Ticker(ticker)
-            current_price = etf_data.info.get('regularMarketPrice')
+            current_price = etf_data.info.get('regularMarketPreviousClose')
             if current_price is not None:
                 return current_price
         except Exception as e:
@@ -31,16 +32,35 @@ def get_etf_price(ticker, max_retries=3, cache_time=900):
 st.set_page_config(page_title="ETF 분석 및 포트폴리오 대시보드", layout="wide", initial_sidebar_state="expanded")
 
 # 대시보드 선택
-dashboard_type = st.sidebar.radio("대시보드 선택", ["ETF 분석 대시보드", "ETF 포트폴리오 분석 대시보드"])
+dashboard_type = st.sidebar.radio("대시보드 선택", ["ETF 분석 대시보드", "ETF 포트폴리오 분석 대시보드", "티커 재무 정보"])
 
-if dashboard_type == "ETF 분석 대시보드":
+if dashboard_type == "티커 재무 정보":
+    # 티커 재무 정보 대시보드 코드
+    st.title("티커 재무 정보 대시보드")
+
+    # 사용자 입력 (티커)
+    ticker = st.sidebar.text_input("티커 입력", value="NVDA")
+
+    # 데이터 로드 및 재무 정보 표시
+    ticker_data = load_ticker_data(ticker)
+    display_financial_info(ticker_data)
+
+    #GPT 분석 버튼 추가
+    if st.button("GPT 재무 분석 실행", key="financial_gpt"):
+        with st.spinner("GPT 분석 중..."):
+            gpt_analysis = analyze_financials_with_gpt(ticker, ticker_data)
+        st.success("GPT 분석 완료!")
+        st.write(gpt_analysis)
+
+# 나머지 대시보드는 그대로 유지
+elif dashboard_type == "ETF 분석 대시보드":
     # ETF 분석 대시보드 코드
     st.title("ETF 분석 대시보드")
     
     # 사이드바 설정
     ticker = st.sidebar.text_input("ETF 티커 입력", value="SPY")
-    start_date = st.sidebar.date_input("시작 날짜", value=pd.to_datetime("2022-01-01"))
-    end_date = st.sidebar.date_input("종료 날짜", value=pd.to_datetime("2024-07-31"))
+    start_date = st.sidebar.date_input("시작 날짜", value=pd.to_datetime("2024-01-01"))
+    end_date = st.sidebar.date_input("종료 날짜", value=pd.Timestamp.today().date())
     benchmark_ticker = st.sidebar.text_input("벤치마크 티커 입력", value="^GSPC")
 
     @st.cache_data
@@ -66,7 +86,6 @@ if dashboard_type == "ETF 분석 대시보드":
             etf_info = analyze_etf(data, ticker)
             for key, value in etf_info.items():
                 st.metric(label=key, value=value)
-
     with tab2:
         st.header("성과 분석")
         performance_metrics = analyze_etf(data, ticker)
@@ -275,3 +294,4 @@ else:
 # 푸터
 st.sidebar.markdown("---")
 st.sidebar.info("© 2024 ETF 분석 및 포트폴리오 대시보드. All rights reserved.")
+

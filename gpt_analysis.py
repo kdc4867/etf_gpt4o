@@ -7,6 +7,7 @@ load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+
 def analyze_portfolio_gpt(portfolio_data, performance_metrics, risk_metrics):
     """GPT를 사용하여 포트폴리오를 분석합니다."""
     prompt = f"""
@@ -62,6 +63,29 @@ def get_gpt_analysis(prompt):
     except Exception as e:
         print(f"API call error: {str(e)}")
         return None
+
+def analyze_financials_with_gpt(ticker, financial_data):
+    """GPT를 사용하여 티커의 재무 정보를 분석합니다."""
+    prompt = f"""
+    Given the following financial data for {ticker}:
+
+    - Market Cap: {financial_data.get('marketCap', 'N/A')}
+    - Total Revenue: {financial_data.get('totalRevenue', 'N/A')}
+    - Total Cash: {financial_data.get('totalCash', 'N/A')}
+    - EBITDA: {financial_data.get('ebitda', 'N/A')}
+    - Debt to Equity Ratio: {financial_data.get('debtToEquity', 'N/A')}
+    - PE Ratio: {financial_data.get('trailingPE', 'N/A')}
+    - PB Ratio: {financial_data.get('priceToBook', 'N/A')}
+    - Dividend Yield: {financial_data.get('dividendYield', 'N/A')}%
+
+    Please analyze this data and provide insights on:
+    1. The company's financial health.
+    2. Risks and opportunities based on the given data.
+    3. Key strengths and weaknesses in comparison to industry averages.
+    4. Recommendations for an investor looking at this company in the current market environment.
+    """
+    
+    return get_gpt_analysis(prompt)
 
 def analyze_etf_performance(etf_data):
     prompt = f"""

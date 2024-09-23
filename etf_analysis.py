@@ -212,3 +212,4 @@ def analyze_macro_market_correlation(etf_ticker, start_date, end_date):
     except Exception as e:
         st.error(f"매크로 및 마켓 상황 연관성 분석 중 오류 발생: {str(e)}")
         return pd.DataFrame()
+
