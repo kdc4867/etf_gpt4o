@@ -1,61 +1,65 @@
+# file: financial_dashboard.py
 import yfinance as yf
 import streamlit as st
+from typing import Any, Dict
 
-def load_ticker_data(ticker):
-    """주어진 티커에 대한 재무 정보를 가져옵니다."""
+@st.cache_data(ttl=3600)
+def load_ticker_info(ticker: str) -> Dict[str, Any] | None:
     try:
-        ticker_data = yf.Ticker(ticker).info
-        return ticker_data
+        info = yf.Ticker(ticker).info
+        if not info or info.get("regularMarketPrice") is None:
+            st.error(f"'{ticker}' 재무 정보를 불러올 수 없습니다. 티커를 확인하세요.")
+            return None
+        return info
     except Exception as e:
-        st.error(f"{ticker} 데이터를 불러오는 중 오류가 발생했습니다: {str(e)}")
+        st.error(f"'{ticker}' 정보를 불러오는 중 오류: {e}")
         return None
 
-def format_large_numbers(value):
-    """큰 수치를 억 단위로 변환하고 소수점 2자리로 반올림합니다."""
+def format_large_number(value: Any) -> str:
     if isinstance(value, (int, float)):
-        if value >= 1e8:
-            return f"{value / 1e8:.2f}억"
-        else:
-            return f"{value:,.2f}"
+        if value >= 1e12:  # 조
+            return f"{value/1e12:.2f}조"
+        if value >= 1e8:   # 억
+            return f"{value/1e8:.2f}억"
+        return f"{value:,.0f}"
     return "N/A"
 
-def format_percentage(value):
-    """백분율로 표현할 값들을 2자리 반올림하여 처리합니다."""
+def format_percentage(value: Any) -> str:
     if isinstance(value, (int, float)):
-        return f"{round(value * 100, 2)}%"
+        return f"{value*100:.2f}%"
     return "N/A"
 
-def display_financial_info(ticker_data):
-    """티커의 재무 정보를 시각화합니다."""
-    if ticker_data:
-        st.subheader(f"{ticker_data.get('longName', '회사 이름 없음')} ({ticker_data.get('symbol', 'N/A')})")
+def format_float(value: Any) -> str:
+    if isinstance(value, (int, float)):
+        return f"{value:.2f}"
+    return "N/A"
 
-        st.markdown(f"**산업:** {ticker_data.get('industry', 'N/A')}")
-        st.markdown(f"**부문:** {ticker_data.get('sector', 'N/A')}")
-        st.markdown(f"**직원 수:** {format_large_numbers(ticker_data.get('fullTimeEmployees', 'N/A'))}")
+def display_financial_info(info: Dict[str, Any]):
+    if not info:
+        return
+    st.subheader(f"{info.get('longName','N/A')} ({info.get('symbol','N/A')})")
+    st.markdown(
+        f"- **산업**: {info.get('industry','N/A')}\n"
+        f"- **섹터**: {info.get('sector','N/A')}\n"
+        f"- **직원 수**: {format_large_number(info.get('fullTimeEmployees'))}\n"
+        f"- **웹사이트**: [{info.get('website','#')}]({info.get('website','#')})\n"
+        f"- **본사**: {info.get('address1','N/A')}, {info.get('city','N/A')}, {info.get('state','N/A')}"
+    )
+    st.divider()
+    st.subheader("주요 재무 정보")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("시가총액", format_large_number(info.get('marketCap')))
+        st.metric("총 매출", format_large_number(info.get('totalRevenue')))
+        st.metric("총 현금", format_large_number(info.get('totalCash')))
+    with c2:
+        st.metric("EBITDA", format_large_number(info.get('ebitda')))
+        st.metric("영업 현금흐름", format_large_number(info.get('operatingCashflow')))
+        st.metric("부채비율 (D/E)", format_float(info.get('debtToEquity')))
+    with c3:
+        st.metric("P/E", format_float(info.get('trailingPE')))
+        st.metric("P/B", format_float(info.get('priceToBook')))
+        st.metric("배당 수익률", format_percentage(info.get('dividendYield')))
 
-        st.write("---")
-        st.subheader("주요 재무 정보")
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.metric("시가총액", format_large_numbers(ticker_data.get('marketCap', 'N/A')))
-            st.metric("총 현금", format_large_numbers(ticker_data.get('totalCash', 'N/A')))
-            st.metric("부채 비율", format_percentage(ticker_data.get('debtToEquity', 'N/A')))
-
-        with col2:
-            st.metric("총 매출", format_large_numbers(ticker_data.get('totalRevenue', 'N/A')))
-            st.metric("EBITDA", format_large_numbers(ticker_data.get('ebitda', 'N/A')))
-            st.metric("현금 흐름", format_large_numbers(ticker_data.get('operatingCashflow', 'N/A')))
-
-        with col3:
-            st.metric("주가 수익 비율(P/E)", f"{ticker_data.get('trailingPE', 'N/A'):.2f}" if ticker_data.get('trailingPE') else "N/A")
-            st.metric("주가 대비 장부가(P/B)", f"{ticker_data.get('priceToBook', 'N/A'):.2f}" if ticker_data.get('priceToBook') else "N/A")
-            st.metric("배당률", format_percentage(ticker_data.get('dividendYield', 0)))
-
-        st.write("---")
-        st.subheader("기타 정보")
-        st.markdown(f"**웹사이트:** [여기 클릭]({ticker_data.get('website', '#')})")
-        st.markdown(f"**본사:** {ticker_data.get('address1', 'N/A')}, {ticker_data.get('city', 'N/A')}, {ticker_data.get('state', 'N/A')}")
-    else:
-        st.error("재무 데이터를 표시할 수 없습니다.")
+# 과거 호환
+load_ticker_data = load_ticker_info

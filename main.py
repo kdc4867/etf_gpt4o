@@ -1,297 +1,220 @@
+# file: main.py
 import streamlit as st
 import pandas as pd
-import yfinance as yf
-import time
-from functools import lru_cache
+import datetime
+import numpy as np
+
 from data_loader import load_data
-from etf_analysis import analyze_etf, analyze_risk_and_benchmark, analyze_factor_exposure, compare_etfs, analyze_macro_market_correlation
-from gpt_analysis import analyze_etf_performance, analyze_risk_and_benchmark as gpt_analyze_risk, analyze_factor_exposure as gpt_analyze_factor, compare_etfs as gpt_compare_etfs, analyze_macro_correlation, get_etf_recommendation, predict_etf_performance, analyze_financials_with_gpt
+try:
+    from financial_dashboard import load_ticker_info, display_financial_info
+except ImportError:
+    from financial_dashboard import load_ticker_data as load_ticker_info, display_financial_info
 
-from visualizations import (
-    plot_price_performance, plot_risk_metrics, plot_factor_exposure, 
-    plot_etf_comparison, plot_macro_correlation,
-    plot_portfolio_summary, plot_cumulative_returns, plot_asset_allocation, plot_efficient_frontier
+from etf_analysis import (
+    analyze_etf_basic,
+    analyze_risk_and_benchmark,
+    analyze_factor_exposure,
+    compare_etfs,
+    analyze_macro_correlation,
 )
-from portfolio_analysis import analyze_portfolio, calculate_portfolio_performance, analyze_risk, analyze_asset_allocation, optimize_portfolio
-from financial_dashboard import load_ticker_data, display_financial_info
+from portfolio_analysis import (
+    calculate_portfolio_performance,
+    analyze_portfolio_risk,
+    run_portfolio_optimization,
+)
+import visualizations as viz
+import gpt_analysis as gpt
 
-@lru_cache(maxsize=100)
-def get_etf_price(ticker, max_retries=3, cache_time=900):
-    for attempt in range(max_retries):
-        try:
-            etf_data = yf.Ticker(ticker)
-            current_price = etf_data.info.get('regularMarketPreviousClose')
-            if current_price is not None:
-                return current_price
-        except Exception as e:
-            if attempt == max_retries - 1:
-                st.warning(f"ETF 정보를 가져오는 데 실패했습니다. 오류: {str(e)}")
-        time.sleep(1)  # API 요청 사이에 잠시 대기
-    return None
+st.set_page_config(
+    page_title="금융 분석 대시보드",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
-st.set_page_config(page_title="ETF 분석 및 포트폴리오 대시보드", layout="wide", initial_sidebar_state="expanded")
+def show_gpt_analysis(button_key: str, analysis_function, *args):
+    if st.button("🤖 GPT 종합 분석 실행", key=button_key):
+        with st.spinner("AI가 데이터를 분석하고 있습니다..."):
+            gpt_response = analysis_function(*args)
+        with st.chat_message("assistant"):
+            st.markdown(gpt_response)
 
-# 대시보드 선택
-dashboard_type = st.sidebar.radio("대시보드 선택", ["ETF 분석 대시보드", "ETF 포트폴리오 분석 대시보드", "티커 재무 정보"])
+# ---- 단일 ETF 탭 렌더러 ----
+def render_etf_overview_tab(data: pd.DataFrame, ticker: str):
+    st.header(f"{ticker} 개요", divider="rainbow")
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        viz.plot_price_chart(data, ticker)
+    with c2:
+        basic = analyze_etf_basic(data)
+        for k, v in basic.items():
+            st.metric(k, v)
+        show_gpt_analysis("gpt_overview", gpt.analyze_etf_performance_with_gpt, ticker, basic)
 
-if dashboard_type == "티커 재무 정보":
-    # 티커 재무 정보 대시보드 코드
-    st.title("티커 재무 정보 대시보드")
+def render_etf_risk_tab(data: pd.DataFrame, benchmark_data: pd.DataFrame, ticker: str):
+    st.header("리스크 분석", divider="rainbow")
+    risk = analyze_risk_and_benchmark(data, benchmark_data)
+    viz.plot_risk_metrics(risk)
+    show_gpt_analysis("gpt_risk", gpt.analyze_risk_with_gpt, ticker, risk)
 
-    # 사용자 입력 (티커)
-    ticker = st.sidebar.text_input("티커 입력", value="NVDA")
+def render_etf_factor_tab(ticker: str, start_date, end_date):
+    st.header("팩터 분석", divider="rainbow")
+    with st.spinner("팩터 데이터를 분석 중입니다..."):
+        exposure = analyze_factor_exposure(ticker, str(start_date), str(end_date))
+    viz.plot_factor_exposure(exposure)
+    if exposure is not None and not exposure.empty:
+        show_gpt_analysis("gpt_factor", gpt.analyze_factor_with_gpt, ticker, exposure)
 
-    # 데이터 로드 및 재무 정보 표시
-    ticker_data = load_ticker_data(ticker)
-    display_financial_info(ticker_data)
+def render_etf_comparison_tab(start_date, end_date):
+    st.header("ETF 비교 분석", divider="rainbow")
+    base = ["SPY", "IVV", "VOO", "QQQ"]
+    chosen = st.multiselect("비교할 ETF 선택", options=base, default=base)
+    if not chosen:
+        st.info("비교할 ETF를 하나 이상 선택하세요.")
+        return
+    df = compare_etfs(chosen, str(start_date), str(end_date))
+    if df.empty:
+        st.warning("선택한 ETF 데이터를 가져올 수 없습니다.")
+        return
+    metric = st.selectbox("비교 기준", options=df.columns[1:])
+    viz.plot_etf_comparison(df, metric)
+    st.dataframe(df, use_container_width=True)
+    show_gpt_analysis("gpt_compare", gpt.compare_etfs_with_gpt, df)
 
-    #GPT 분석 버튼 추가
-    if st.button("GPT 재무 분석 실행", key="financial_gpt"):
-        with st.spinner("GPT 분석 중..."):
-            gpt_analysis = analyze_financials_with_gpt(ticker, ticker_data)
-        st.success("GPT 분석 완료!")
-        st.write(gpt_analysis)
+def render_etf_macro_tab(ticker: str, start_date, end_date):
+    st.header("매크로 분석", divider="rainbow")
+    with st.spinner("거시 지표와의 상관관계를 계산 중..."):
+        corr = analyze_macro_correlation(ticker, str(start_date), str(end_date))
+    viz.plot_macro_correlation(corr, ticker)
+    if not corr.empty:
+        show_gpt_analysis("gpt_macro", gpt.analyze_macro_with_gpt, ticker, corr)
 
-# 나머지 대시보드는 그대로 유지
-elif dashboard_type == "ETF 분석 대시보드":
-    # ETF 분석 대시보드 코드
-    st.title("ETF 분석 대시보드")
-    
-    # 사이드바 설정
-    ticker = st.sidebar.text_input("ETF 티커 입력", value="SPY")
-    start_date = st.sidebar.date_input("시작 날짜", value=pd.to_datetime("2024-01-01"))
-    end_date = st.sidebar.date_input("종료 날짜", value=pd.Timestamp.today().date())
-    benchmark_ticker = st.sidebar.text_input("벤치마크 티커 입력", value="^GSPC")
+# ---- 재무 정보 ----
+def financial_info_dashboard():
+    st.title("💡 개별 티커 재무 정보")
+    ticker = st.text_input("주식/ETF 티커 (예: AAPL, NVDA, SPY)", value="NVDA").upper()
+    if not ticker:
+        return
+    info = load_ticker_info(ticker)
+    if info:
+        display_financial_info(info)
+        st.divider()
+        show_gpt_analysis("financial_gpt", gpt.analyze_financials_with_gpt, ticker, info)
 
-    @st.cache_data
-    def load_cached_data(ticker, start_date, end_date):
-        return load_data(ticker, start_date, end_date)
+# ---- 단일 ETF ----
+def etf_analysis_dashboard():
+    st.title("🔬 단일 ETF 심층 분석")
+    with st.sidebar:
+        st.header("분석 설정")
+        ticker = st.text_input("ETF/주식 티커", value="SPY").upper()
+        bench = st.text_input("벤치마크 티커", value="^GSPC").upper()
+        today = datetime.date.today()
+        start_date = st.date_input("시작 날짜", today - datetime.timedelta(days=365 * 3))
+        end_date = st.date_input("종료 날짜", today)
 
-    # 데이터 로드 및 기본 분석
-    data = load_cached_data(ticker, start_date, end_date)
-    benchmark_data = load_cached_data(benchmark_ticker, start_date, end_date)
+    if not ticker:
+        return
 
-    if data is None or benchmark_data is None:
-        st.error("데이터를 불러오는 데 실패했습니다. 입력을 확인하고 다시 시도해주세요.")
-        st.stop()
+    data = load_data(ticker, start_date, end_date)
+    bench_data = load_data(bench, start_date, end_date)
+    if data is None or bench_data is None:
+        st.error("데이터 로드 실패. 티커/날짜를 확인하세요.")
+        return
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["개요", "성과 분석", "리스크 분석", "팩터 분석", "ETF 비교", "매크로 분석"])
+    t1, t2, t3, t4, t5 = st.tabs(["개요", "리스크 분석", "팩터 분석", "ETF 비교", "매크로 분석"])
+    with t1: render_etf_overview_tab(data, ticker)
+    with t2: render_etf_risk_tab(data, bench_data, ticker)
+    with t3: render_etf_factor_tab(ticker, start_date, end_date)
+    with t4: render_etf_comparison_tab(start_date, end_date)
+    with t5: render_etf_macro_tab(ticker, start_date, end_date)
 
-    with tab1:
-        st.header("ETF 개요")
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            plot_price_performance(data, ticker)
-        with col2:
-            etf_info = analyze_etf(data, ticker)
-            for key, value in etf_info.items():
-                st.metric(label=key, value=value)
-    with tab2:
-        st.header("성과 분석")
-        performance_metrics = analyze_etf(data, ticker)
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("연간 수익률", performance_metrics["연간 수익률"])
-        with col2:
-            st.metric("연간 변동성", performance_metrics["연간 변동성"])
-        with col3:
-            st.metric("샤프 비율", performance_metrics["샤프 비율"])
-        
-        if st.button("GPT 성과 분석 실행", key="performance_gpt"):
-            with st.spinner("GPT 분석 중..."):
-                gpt_analysis = analyze_etf_performance(str(data))
-            st.success("GPT 분석 완료!")
-            st.write(gpt_analysis)
+# ---- 포트폴리오 ----
+def portfolio_dashboard():
+    st.title("💼 ETF 포트폴리오 분석")
 
-    with tab3:
-        st.header("리스크 분석")
-        risk_metrics = analyze_risk_and_benchmark(data, benchmark_data, ticker, benchmark_ticker)
-        plot_risk_metrics(risk_metrics, ticker, benchmark_ticker)
-        
-        if st.button("GPT 리스크 분석 실행", key="risk_gpt"):
-            with st.spinner("GPT 분석 중..."):
-                gpt_analysis = gpt_analyze_risk(str(risk_metrics))
-            st.success("GPT 분석 완료!")
-            st.write(gpt_analysis)
+    if "portfolio" not in st.session_state:
+        st.session_state.portfolio = pd.DataFrame(columns=["ETF", "Weight"])
 
-    with tab4:
-        st.header("팩터 분석")
-        factor_exposure = analyze_factor_exposure(ticker, start_date, end_date)
-        plot_factor_exposure(factor_exposure)
-        
-        if st.button("GPT 팩터 분석 실행", key="factor_gpt"):
-            with st.spinner("GPT 분석 중..."):
-                gpt_analysis = gpt_analyze_factor(str(factor_exposure))
-            st.success("GPT 분석 완료!")
-            st.write(gpt_analysis)
-
-    with tab5:
-        st.header("ETF 비교")
-        etfs_to_compare = st.multiselect("비교할 ETF 선택", ["SPY", "IVV", "VOO", "SPLG"], default=["SPY", "IVV", "VOO"])
-        comparison_data = compare_etfs(etfs_to_compare, start_date, end_date)
-        plot_etf_comparison(comparison_data)
-        
-        if st.button("GPT ETF 비교 분석 실행", key="compare_gpt"):
-            with st.spinner("GPT 분석 중..."):
-                gpt_analysis = gpt_compare_etfs(str(comparison_data))
-            st.success("GPT 분석 완료!")
-            st.write(gpt_analysis)
-
-    with tab6:
-        st.header("매크로 분석")
-        correlation_data = analyze_macro_market_correlation(ticker, start_date, end_date)
-        plot_macro_correlation(correlation_data, ticker)
-        
-        if st.button("GPT 매크로 분석 실행", key="macro_gpt"):
-            with st.spinner("GPT 분석 중..."):
-                gpt_analysis = analyze_macro_correlation(str(correlation_data))
-            st.success("GPT 분석 완료!")
-            st.write(gpt_analysis)
-
-else:
-    # ETF 포트폴리오 분석 대시보드 코드
-    st.title("ETF 포트폴리오 분석 대시보드")
-
-    # 초기화 버튼
-    if st.sidebar.button("포트폴리오 초기화"):
-        st.session_state.portfolio = pd.DataFrame(columns=['ETF', 'Shares', 'Price', 'Value', 'Weight'])
-        st.rerun()
-
-    # 포트폴리오 입력
-    st.sidebar.title("포트폴리오 구성")
-
-    if 'portfolio' not in st.session_state:
-        st.session_state.portfolio = pd.DataFrame(columns=['ETF', 'Shares', 'Price', 'Value', 'Weight'])
-
-    new_etf = st.sidebar.text_input("ETF 티커 입력")
-    new_shares = st.sidebar.number_input("주식 수량 입력", min_value=1, step=1)
-
-    if new_etf:
-        current_price = get_etf_price(new_etf)
-        if current_price is not None:
-            st.sidebar.write(f"현재 가격: ${current_price:.2f}")
-        else:
-            st.sidebar.warning("현재 가격 정보를 가져올 수 없습니다. 수동으로 입력해주세요.")
-            current_price = st.sidebar.number_input("현재 가격 입력", min_value=0.01, step=0.01)
-
-    if st.sidebar.button("ETF 추가"):
-        if new_etf in st.session_state.portfolio['ETF'].values:
-            st.sidebar.error("이미 추가된 ETF입니다. 수정하려면 아래 테이블에서 직접 수정하세요.")
-        elif current_price is not None and current_price > 0:
-            new_value = new_shares * current_price
-            total_value = st.session_state.portfolio['Value'].sum() + new_value
-            new_weight = new_value / total_value
-
-            new_row = pd.DataFrame({
-                'ETF': [new_etf], 
-                'Shares': [new_shares], 
-                'Price': [current_price], 
-                'Value': [new_value], 
-                'Weight': [new_weight]
-            })
-            st.session_state.portfolio = pd.concat([st.session_state.portfolio, new_row], ignore_index=True)
-            
-            # 모든 ETF의 비중 재계산
-            st.session_state.portfolio['Weight'] = st.session_state.portfolio['Value'] / st.session_state.portfolio['Value'].sum()
-        else:
-            st.sidebar.error("유효한 ETF 티커와 가격을 입력해주세요.")
-
-    st.sidebar.write("현재 포트폴리오:")
-    edited_portfolio = st.sidebar.data_editor(
-        st.session_state.portfolio,
-        num_rows="dynamic",
-        column_config={
-            "ETF": st.column_config.TextColumn("ETF", disabled=True),
-            "Shares": st.column_config.NumberColumn("Shares"),
-            "Price": st.column_config.NumberColumn("Price", format="$%.2f"),
-            "Value": st.column_config.NumberColumn("Value", format="$%.2f"),
-            "Weight": st.column_config.ProgressColumn("Weight", format="%.2f%%", min_value=0, max_value=1),
-        },
-        disabled=["ETF", "Value", "Weight"]
-    )
-
-    if not edited_portfolio.equals(st.session_state.portfolio):
-        edited_portfolio['Value'] = edited_portfolio['Shares'] * edited_portfolio['Price']
-        edited_portfolio['Weight'] = edited_portfolio['Value'] / edited_portfolio['Value'].sum()
-        st.session_state.portfolio = edited_portfolio
-
-    total_weight = st.session_state.portfolio['Weight'].sum()
-    st.sidebar.write(f"총 비중: {total_weight:.2%}")
-
-    if st.sidebar.button("포트폴리오 저장"):
-        st.sidebar.download_button(
-            label="Download Portfolio",
-            data=st.session_state.portfolio.to_csv(index=False),
-            file_name="my_portfolio.csv",
-            mime="text/csv"
+    with st.sidebar:
+        st.header("포트폴리오 구성")
+        edited = st.data_editor(
+            st.session_state.portfolio,
+            num_rows="dynamic",
+            column_config={
+                "ETF": st.column_config.TextColumn("ETF 티커", required=True),
+                "Weight": st.column_config.NumberColumn("비중 (%)", min_value=0, max_value=100, format="%d%%"),
+            },
+            key="portfolio_editor",
         )
+        if st.button("비중 재계산 및 적용"):
+            tot = edited["Weight"].sum()
+            if tot > 0:
+                edited["Weight"] = (edited["Weight"] / tot) * 100
+            st.session_state.portfolio = edited.copy()
+            st.success("포트폴리오가 업데이트되었습니다.")
+            st.rerun()
 
-    uploaded_file = st.sidebar.file_uploader("포트폴리오 불러오기", type="csv")
-    if uploaded_file is not None:
-        st.session_state.portfolio = pd.read_csv(uploaded_file)
-        st.session_state.portfolio['Value'] = st.session_state.portfolio['Shares'] * st.session_state.portfolio['Price']
-        st.session_state.portfolio['Weight'] = st.session_state.portfolio['Value'] / st.session_state.portfolio['Value'].sum()
+    total_w = st.session_state.portfolio["Weight"].sum()
+    st.sidebar.metric("현재 총 비중", f"{total_w:.0f}%")
+    if not st.session_state.portfolio.empty and not np.isclose(total_w, 100):
+        st.sidebar.warning("비중 합이 100%가 아닙니다. 재계산 버튼으로 맞춰주세요.")
 
-    if not st.session_state.portfolio.empty:
-        # 데이터 준비
-        end_date = pd.Timestamp.now()
-        start_date = end_date - pd.DateOffset(years=5)
-        
-        # 포트폴리오 분석
-        portfolio_data = analyze_portfolio(st.session_state.portfolio, start_date, end_date)
-        performance_metrics = calculate_portfolio_performance(portfolio_data)
-        risk_metrics = analyze_risk(portfolio_data)
-        asset_allocation = analyze_asset_allocation(st.session_state.portfolio)
+    if st.session_state.portfolio.empty or not np.isclose(total_w, 100):
+        st.info("👈 사이드바에서 ETF와 비중을 입력하고 적용하세요.")
+        return
 
-        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-            "포트폴리오 개요", "성과 분석", "리스크 분석", "자산 배분", "개별 ETF 분석", "최적화 제안"
-        ])
+    portfolio_df = st.session_state.portfolio.copy()
+    portfolio_df["Weight"] = portfolio_df["Weight"] / 100.0
 
-        with tab1:
-            st.header("포트폴리오 개요")
-            plot_portfolio_summary(portfolio_data, performance_metrics)
+    today = datetime.date.today()
+    start_5y = today - datetime.timedelta(days=365 * 5)
 
-        with tab2:
-            st.header("성과 분석")
-            st.write("연간 수익률: {:.2f}%".format(performance_metrics['Annual Return'] * 100))
-            st.write("연간 변동성: {:.2f}%".format(performance_metrics['Annual Volatility'] * 100))
-            st.write("샤프 비율: {:.2f}".format(performance_metrics['Sharpe Ratio']))
-            plot_cumulative_returns(portfolio_data)
+    perf = calculate_portfolio_performance(portfolio_df, start_5y, today)
+    risk = analyze_portfolio_risk(perf["daily_returns"], start_5y, today)
 
-        with tab3:
-            st.header("리스크 분석")
-            st.write("베타: {:.4f}".format(risk_metrics['Beta']))
-            st.write("알파: {:.2f}%".format(risk_metrics['Alpha'] * 100))
-            st.write("최대 낙폭: {:.2f}%".format(risk_metrics['Max Drawdown'] * 100))
-            st.write("Value at Risk (95%): {:.2f}%".format(risk_metrics['Value at Risk (95%)'] * 100))
+    t1, t2, t3 = st.tabs(["포트폴리오 개요", "성과 및 리스크", "포트폴리오 최적화"])
+    with t1:
+        st.header("포트폴리오 요약", divider="rainbow")
+        c1, c2 = st.columns(2)
+        with c1:
+            viz.plot_asset_allocation(portfolio_df)
+        with c2:
+            viz.plot_cumulative_returns(perf["daily_returns"])
+        show_gpt_analysis("gpt_portfolio", gpt.analyze_portfolio_with_gpt, perf, risk, portfolio_df)
 
-        with tab4:
-            st.header("자산 배분")
-            plot_asset_allocation(asset_allocation)
+    with t2:
+        st.header("상세 성과 및 리스크 지표", divider="rainbow")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("연간 수익률", f"{perf['Annual Return']*100:.2f}%")
+        c2.metric("연간 변동성", f"{perf['Annual Volatility']*100:.2f}%")
+        c3.metric("샤프 비율", f"{perf['Sharpe Ratio']:.2f}")
+        c1.metric("베타", f"{risk['Beta']:.2f}")
+        c2.metric("연환산 알파", f"{risk['Alpha (Annualized)']*100:.2f}%")
+        c3.metric("최대 낙폭", f"{risk['Max Drawdown']*100:.2f}%")
 
-        with tab5:
-            st.header("개별 ETF 분석")
-            for etf in st.session_state.portfolio['ETF']:
-                with st.expander(f"{etf} 상세 정보"):
-                    etf_data = yf.Ticker(etf).info
-                    st.write(etf_data)
+    with t3:
+        st.header("포트폴리오 최적화 제안 (효율적 투자선)", divider="rainbow")
+        st.info("현재 구성 종목만으로 계산한 최대 샤프 포트폴리오와 효율적 투자선을 표시합니다.")
+        tickers_tuple = tuple(sorted(portfolio_df['ETF'].tolist()))
+        with st.spinner("최적화 계산 중..."):
+            opt = run_portfolio_optimization(tickers_tuple, start_5y, today)
+        if opt is None:
+            st.warning("최적화에 필요한 데이터가 부족합니다(2종목 이상 필요).")
+        else:
+            results, max_sharpe_perf, optimal_summary = opt
+            viz.plot_efficient_frontier(results, max_sharpe_perf, optimal_summary)
 
-        with tab6:
-            st.header("포트폴리오 최적화 제안")
-            efficient_frontier, optimal_portfolio = optimize_portfolio(portfolio_data)
-            plot_efficient_frontier(efficient_frontier, optimal_portfolio)
+def main():
+    st.sidebar.title("대시보드 네비게이션")
+    pages = {
+        "🔬 단일 ETF 심층 분석": etf_analysis_dashboard,
+        "💼 ETF 포트폴리오 분석": portfolio_dashboard,
+        "💡 개별 티커 재무 정보": financial_info_dashboard,
+    }
+    choice = st.sidebar.radio("보고 싶은 대시보드를 선택하세요:", list(pages.keys()))
+    st.sidebar.divider()
+    st.sidebar.info("© 2025 Financial Analysis Dashboard")
+    pages[choice]()
 
-        # GPT 분석
-        if st.button("GPT 포트폴리오 분석 실행"):
-            with st.spinner("GPT 분석 중..."):
-                gpt_analysis = analyze_portfolio_gpt(portfolio_data, performance_metrics, risk_metrics)
-            st.success("GPT 분석 완료!")
-            st.write(gpt_analysis)
-
-    else:
-        st.info("포트폴리오를 구성하려면 사이드바에서 ETF를 추가하세요.")
-
-# 푸터
-st.sidebar.markdown("---")
-st.sidebar.info("© 2024 ETF 분석 및 포트폴리오 대시보드. All rights reserved.")
-
+if __name__ == "__main__":
+    main()

@@ -1,112 +1,133 @@
-import pandas as pd
+# file: portfolio_analysis.py
 import numpy as np
+import pandas as pd
 import yfinance as yf
 from scipy.optimize import minimize
+from typing import List, Tuple, Dict, Optional
 
-def analyze_portfolio(portfolio_df, start_date, end_date):
-    """포트폴리오 데이터를 분석하고 각 ETF의 수익률 데이터를 반환합니다."""
-    portfolio_data = {}
-    for etf, weight in portfolio_df[['ETF', 'Weight']].values:
-        try:
-            data = yf.download(etf, start=start_date, end=end_date)['Adj Close']
-            returns = data.pct_change().dropna()
-            portfolio_data[etf] = {'returns': returns, 'weight': weight}
-        except Exception as e:
-            print(f"Error fetching data for {etf}: {e}")
-    return portfolio_data
+TRADING_DAYS = 252
+RISK_FREE_ANNUAL = 0.02
+RISK_FREE_DAILY = RISK_FREE_ANNUAL / TRADING_DAYS
+MARKET_BENCH = "^GSPC"
 
-def calculate_portfolio_performance(portfolio_data):
-    """포트폴리오의 성과 지표를 계산합니다."""
-    weights = np.array([data['weight'] for data in portfolio_data.values()])
-    returns = pd.DataFrame({etf: data['returns'] for etf, data in portfolio_data.items()})
-    
-    portfolio_returns = (returns * weights).sum(axis=1)
-    cumulative_returns = (1 + portfolio_returns).cumprod()
-    
-    annual_return = portfolio_returns.mean() * 252
-    annual_volatility = portfolio_returns.std() * np.sqrt(252)
-    sharpe_ratio = annual_return / annual_volatility
-    
+def _extract_price(df: pd.DataFrame, price_col_priority=("Adj Close", "Close")) -> pd.Series:
+    if df.empty:
+        return pd.Series(dtype=float)
+    if isinstance(df.columns, pd.MultiIndex):
+        lvl = df.columns.get_level_values(-1)
+        for col in price_col_priority:
+            if col in lvl:
+                s = df.xs(col, axis=1, level=-1)
+                if isinstance(s, pd.DataFrame):
+                    s = s.iloc[:, 0]
+                return pd.to_numeric(s, errors="coerce").dropna()
+    else:
+        for col in price_col_priority:
+            if col in df.columns:
+                return pd.to_numeric(df[col], errors="coerce").dropna()
+    num_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+    if num_cols:
+        return pd.to_numeric(df[num_cols[0]], errors="coerce").dropna()
+    return pd.Series(dtype=float)
+
+def load_price_series(ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
+    df = yf.download(ticker, start=start, end=end, progress=False, actions=False, group_by="ticker")
+    s = _extract_price(df)
+    s.name = ticker
+    return s
+
+def build_returns_matrix(tickers: List[str], start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
+    series_list = []
+    for t in tickers:
+        px = load_price_series(t, start, end)
+        if px.empty:
+            continue
+        series_list.append(px.pct_change().dropna().rename(t))
+    if not series_list:
+        return pd.DataFrame()
+    R = pd.concat(series_list, axis=1).dropna(how="all")
+    R = R.dropna(axis=1, how="all")
+    return R
+
+def calculate_portfolio_performance(portfolio_df: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.Timestamp) -> Dict[str, any]:
+    """
+    portfolio_df: ['ETF','Weight'] with Weight in 0~1
+    return: {'daily_returns', 'Annual Return', 'Annual Volatility', 'Sharpe Ratio'}
+    """
+    tickers = [t.strip().upper() for t in portfolio_df["ETF"].tolist() if isinstance(t, str)]
+    if not tickers:
+        return {"daily_returns": pd.Series(dtype=float), "Annual Return": 0.0, "Annual Volatility": 0.0, "Sharpe Ratio": 0.0}
+
+    R = build_returns_matrix(tickers, start_date, end_date)
+    if R.empty:
+        return {"daily_returns": pd.Series(dtype=float), "Annual Return": 0.0, "Annual Volatility": 0.0, "Sharpe Ratio": 0.0}
+
+    w = (portfolio_df.set_index("ETF")["Weight"].reindex(R.columns).fillna(0.0).astype(float))
+    s = w.sum()
+    if s > 0:
+        w = w / s
+
+    port = (R * w).sum(axis=1).dropna()
+    ann_ret = port.mean() * TRADING_DAYS
+    ann_vol = port.std() * np.sqrt(TRADING_DAYS)
+    sharpe = (ann_ret - RISK_FREE_ANNUAL) / ann_vol if ann_vol > 0 else 0.0
+
     return {
-        'Annual Return': annual_return,
-        'Annual Volatility': annual_volatility,
-        'Sharpe Ratio': sharpe_ratio,
-        'Cumulative Returns': cumulative_returns
+        "daily_returns": port,
+        "Annual Return": float(ann_ret),
+        "Annual Volatility": float(ann_vol),
+        "Sharpe Ratio": float(sharpe),
     }
 
-def analyze_risk(portfolio_data):
-    """포트폴리오의 리스크 지표를 계산합니다."""
-    weights = np.array([data['weight'] for data in portfolio_data.values()])
-    returns = pd.DataFrame({etf: data['returns'] for etf, data in portfolio_data.items()})
-    
-    portfolio_returns = (returns * weights).sum(axis=1)
-    
-    # 베타 계산 (S&P 500을 시장 벤치마크로 사용)
-    market_returns = yf.download('^GSPC', start=returns.index[0], end=returns.index[-1])['Adj Close'].pct_change().dropna()
-    beta = portfolio_returns.cov(market_returns) / market_returns.var()
-    
-    # 알파 계산
-    risk_free_rate = 0.02 / 252  # 연 2%의 무위험 수익률 가정
-    alpha = portfolio_returns.mean() - risk_free_rate - beta * market_returns.mean()
-    
-    # 최대 낙폭 계산
-    cum_returns = (1 + portfolio_returns).cumprod()
-    running_max = cum_returns.cummax()
-    drawdown = (cum_returns - running_max) / running_max
-    max_drawdown = drawdown.min()
-    
-    return {
-        'Beta': beta,
-        'Alpha': alpha * 252,  # 연간화
-        'Max Drawdown': max_drawdown,
-        'Value at Risk (95%)': np.percentile(portfolio_returns, 5)
-    }
+def analyze_portfolio_risk(portfolio_returns: pd.Series, start_date: pd.Timestamp, end_date: pd.Timestamp) -> Dict[str, float]:
+    if portfolio_returns.empty:
+        return {"Beta": 0.0, "Alpha (Annualized)": 0.0, "Max Drawdown": 0.0}
+    mkt_px = load_price_series(MARKET_BENCH, start_date, end_date)
+    mkt = mkt_px.pct_change().dropna()
+    df = pd.concat([portfolio_returns.rename("p"), mkt.rename("m")], axis=1).dropna()
+    if df.empty or df["m"].var() == 0:
+        beta = 0.0
+    else:
+        beta = df["p"].cov(df["m"]) / df["m"].var()
+    alpha_daily = df["p"].mean() - RISK_FREE_DAILY - beta * (df["m"].mean() - RISK_FREE_DAILY)
+    alpha_annual = alpha_daily * TRADING_DAYS
 
-def analyze_asset_allocation(portfolio_df):
-    """포트폴리오의 자산 배분을 분석합니다."""
-    asset_allocation = {}
-    for etf, weight in portfolio_df[['ETF', 'Weight']].values:
-        try:
-            info = yf.Ticker(etf).info
-            category = info.get('category', 'Other')
-            if category not in asset_allocation:
-                asset_allocation[category] = 0
-            asset_allocation[category] += weight
-        except Exception as e:
-            print(f"Error fetching info for {etf}: {e}")
-    return asset_allocation
+    cum = (1 + portfolio_returns).cumprod()
+    peak = cum.cummax()
+    mdd = ((cum - peak) / peak).min()
 
-def optimize_portfolio(portfolio_data):
-    """효율적 프론티어를 계산하고 최적의 포트폴리오를 제안합니다."""
-    returns = pd.DataFrame({etf: data['returns'] for etf, data in portfolio_data.items()})
-    mean_returns = returns.mean()
-    cov_matrix = returns.cov()
-    
-    num_assets = len(portfolio_data)
-    num_portfolios = 10000
-    results = np.zeros((3, num_portfolios))
-    
-    for i in range(num_portfolios):
-        weights = np.random.random(num_assets)
-        weights /= np.sum(weights)
-        portfolio_return = np.sum(mean_returns * weights) * 252
-        portfolio_std_dev = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))) * np.sqrt(252)
-        results[0,i] = portfolio_std_dev
-        results[1,i] = portfolio_return
-        results[2,i] = portfolio_return / portfolio_std_dev
-    
-    def portfolio_return(weights):
-        return np.sum(mean_returns * weights) * 252
+    return {"Beta": float(beta), "Alpha (Annualized)": float(alpha_annual), "Max Drawdown": float(mdd) if pd.notna(mdd) else 0.0}
 
-    def portfolio_volatility(weights):
-        return np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))) * np.sqrt(252)
+def run_portfolio_optimization(tickers: Tuple[str, ...], start_date: pd.Timestamp, end_date: pd.Timestamp, n_sims: int = 8000) -> Optional[Tuple[np.ndarray, Tuple[float, float], pd.DataFrame]]:
+    tickers = [t.strip().upper() for t in tickers if isinstance(t, str)]
+    R = build_returns_matrix(tickers, start_date, end_date)
+    if R.empty or len(R.columns) < 2:
+        return None
 
-    def min_function(weights):
-        return -portfolio_return(weights) / portfolio_volatility(weights)
+    mean_R = R.mean()
+    cov = R.cov()
 
-    constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
-    bounds = tuple((0, 1) for asset in range(num_assets))
-    
-    optimal_portfolio = minimize(min_function, num_assets*[1./num_assets], method='SLSQP', bounds=bounds, constraints=constraints)
-    
-    return results, optimal_portfolio
+    def ann_return(w): return float(np.sum(mean_R * w) * TRADING_DAYS)
+    def ann_vol(w):    return float(np.sqrt(np.dot(w.T, np.dot(cov, w))) * np.sqrt(TRADING_DAYS))
+    def neg_sharpe(w):
+        v = ann_vol(w)
+        return 1e6 if v == 0 else - (ann_return(w) - RISK_FREE_ANNUAL) / v
+
+    results = np.zeros((3, n_sims))
+    for i in range(n_sims):
+        w = np.random.random(len(tickers)); w /= w.sum()
+        r = ann_return(w); v = ann_vol(w)
+        s = 0.0 if v == 0 else (r - RISK_FREE_ANNUAL) / v
+        results[0, i] = v
+        results[1, i] = r
+        results[2, i] = s
+
+    x0 = np.array([1.0/len(tickers)]*len(tickers))
+    bounds = tuple((0.0, 1.0) for _ in tickers)
+    cons = {"type": "eq", "fun": lambda w: np.sum(w) - 1.0}
+    opt = minimize(neg_sharpe, x0, bounds=bounds, constraints=cons, method="SLSQP")
+    w_opt = x0 if (not opt.success or np.isnan(opt.fun)) else opt.x
+
+    max_sharpe_perf = (ann_return(w_opt), ann_vol(w_opt))
+    summary = pd.DataFrame({"Weight": w_opt}, index=tickers); summary.index.name = "ETF"
+    return results, max_sharpe_perf, summary

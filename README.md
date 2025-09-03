@@ -1,73 +1,93 @@
-### README.md
+# 📊 ETF 분석 및 포트폴리오 대시보드
 
-```markdown
-# ETF Analysis Dashboard
-
-This project aims to build a dashboard for analyzing the performance of ETFs (Exchange Traded Funds). It uses Streamlit and OpenAI's GPT-4 to perform analysis on ETF performance, risk, factor exposure, and benchmark comparison.
-
-이 프로젝트는 ETF(Exchange Traded Funds) 성과 분석을 위한 대시보드를 구축하는 것을 목표로 합니다. Streamlit과 OpenAI의 GPT-4o-mini를 사용하여 ETF 성과, 리스크, 팩터 노출도 및 벤치마크와의 비교를 수행할 수 있습니다.
-
-## Features / 기능
-- **ETF Performance Analysis / ETF 성과 분석**: Calculates and displays annual return, volatility, Sharpe ratio, and expense ratio. / 연간 수익률, 연간 변동성, 샤프 비율 및 경비 비율을 계산하고 표시합니다.
-- **Risk and Benchmark Analysis / 리스크 및 벤치마크 분석**: Analyzes risk metrics including beta, maximum drawdown, tracking error, and alpha. / 베타, 최대 낙폭, 추적 오차 및 알파를 포함한 리스크 지표를 분석합니다.
-- **Factor Analysis / 팩터 분석**: Evaluates exposure to market, size, value, growth, and momentum factors. / 시장, 사이즈, 가치, 성장 및 모멘텀 팩터에 대한 노출도를 평가합니다.
-- **ETF Comparison / ETF 비교**: Allows users to compare multiple ETFs based on performance and risk metrics. / 여러 ETF를 선택하여 성과와 리스크 지표를 비교합니다.
-- **Macro and Market Correlation / 매크로 및 시장 상황 연관성**: Analyzes correlations between ETFs and major macroeconomic indicators. / ETF와 주요 거시 경제 지표 간의 상관관계를 분석합니다.
-- **GPT-4 Enhanced Analysis / GPT-4 기반 분석**: Provides additional analysis and recommendations using GPT-4, with responses in Korean. / GPT-4를 사용하여 추가적인 분석과 추천을 제공합니다. (응답은 한국어로 제공됩니다)
-
-## Installation / 설치
-1. Clone the repository / 리포지토리를 클론합니다:
-   ```bash
-   git clone https://github.com/your_username/your_repository_name.git
-   cd your_repository_name
-   ```
-2. Create and activate a virtual environment / 가상 환경을 생성하고 활성화합니다:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # Windows: venv\Scripts\activate
-   ```
-3. Install the required packages / 필요한 패키지를 설치합니다:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-## Environment Variables / 환경 변수 설정
-1. Create a `.env` file and add your OpenAI API key / `.env` 파일을 생성하고 OpenAI API 키를 추가합니다:
-   ```bash
-   OPENAI_API_KEY=your_openai_api_key
-   ```
-
-## Usage / 사용 방법
-1. Run the Streamlit app / Streamlit 앱을 실행합니다:
-   ```bash
-   streamlit run main.py
-   ```
-2. Open your browser and go to `http://localhost:8501` to access the dashboard / 브라우저에서 `http://localhost:8501`을 열어 대시보드에 접근합니다.
-
-## Project Structure / 프로젝트 구조
-```
-your_project_folder/
-│
-├── data_loader.py           # Functions to load and cache ETF data / ETF 데이터를 로드하고 캐시하는 함수
-├── etf_analysis.py          # Functions for ETF performance, risk, factor, and benchmark analysis / ETF 성과, 리스크, 팩터 및 벤치마크 분석 함수
-├── gpt_analysis.py          # Functions to integrate GPT-4 API for enhanced analysis / GPT-4 API를 통합한 추가 분석 함수
-├── main.py                  # Main file for the Streamlit app / Streamlit 앱 메인 파일
-└── visualizations.py        # Functions to create visualizations / 시각화 함수
-```
+이 프로젝트는 **ETF(Exchange Traded Fund)** 및 개별 주식의 성과, 리스크, 팩터 노출, 매크로 지표 연관성을 분석할 수 있는 **대시보드 애플리케이션**입니다.  
+Streamlit 기반 인터페이스와 OpenAI GPT 모델을 결합하여, 데이터 기반의 지표와 자연어 분석 리포트를 동시에 제공합니다.  
 
 
 
-이제 이 두 파일을 프로젝트 루트 디렉토리에 저장하고, Git을 통해 커밋 및 푸시하면 됩니다.
+---
 
-### 커밋 및 푸시
+## 🚀 주요 기능
 
+### 1. 단일 ETF/주식 심층 분석
+- 가격 추이 및 이동평균선 시각화
+- 연간 수익률, 변동성, 샤프 비율 계산
+- 리스크 지표 (베타, 알파, 최대 낙폭, VaR)
+- 팩터 노출 분석 (Value, Growth, Momentum 등)
+- 매크로 지표와의 상관관계 히트맵
+- **GPT 기반 분석**: 성과, 리스크, 팩터 노출에 대한 한국어 인사이트 제공
+
+### 2. 포트폴리오 분석
+- 사이드바에서 ETF/주식 추가 → 자동 비중 계산
+- 포트폴리오 전체 성과 지표 및 누적 수익률
+- 자산 배분 파이 차트
+- 효율적 투자선(Efficient Frontier) 및 최적 포트폴리오 추천
+- **GPT 기반 종합 분석 리포트** 제공
+
+### 3. 사용자 친화적 UI
+- Streamlit 대시보드로 직관적인 사용 가능
+- 버튼 클릭만으로 GPT 분석 실행
+- CSV 파일로 포트폴리오 저장/불러오기 가능
+
+---
+
+## 🛠️ 설치 방법
+
+1. 저장소 클론
 ```bash
-# 변경된 파일을 스테이징
-git add README.md LICENSE
+git clone https://github.com/your_username/etf-dashboard.git
+cd etf-dashboard
 
-# 변경 사항 커밋
-git commit -m "Add bilingual README and LICENSE files"
+	2.	가상환경 생성 및 패키지 설치
 
-# 변경 사항 푸시
-git push origin master
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+	3.	환경 변수 설정
+
+	•	프로젝트 루트 디렉토리에 .env 파일 생성 후, OpenAI API 키를 입력합니다.
+
+OPENAI_API_KEY=your_openai_api_key
 ```
+
+⸻
+
+▶️ 실행 방법
+
+streamlit run main.py
+
+브라우저에서 http://localhost:8501 로 접속하면 대시보드에 접근할 수 있습니다.
+
+⸻
+
+📂 프로젝트 구조
+
+project_folder/
+│
+├── data_loader.py        # ETF/주식 데이터 로드 및 캐싱
+├── etf_analysis.py       # 성과, 리스크, 팩터, 벤치마크 분석
+├── gpt_analysis.py       # GPT API 연동 및 분석 리포트 생성
+├── portfolio_analysis.py # 포트폴리오 성과·리스크·최적화 분석
+├── visualizations.py     # Plotly 기반 시각화 함수
+├── main.py               # Streamlit 앱 실행 메인 파일
+└── requirements.txt      # 의존성 패키지
+
+
+⸻
+
+
+📌 참고
+	•	데이터 소스: Yahoo Finance (yfinance API 활용)
+	•	분석/시각화: Pandas, NumPy, Plotly
+	•	인터페이스: Streamlit
+	•	자연어 분석: OpenAI GPT-4o-mini
+
+⸻
+
+📄 라이선스
+
+이 프로젝트는 MIT License를 따르며, 비상업적 용도로 작성되었습니다.
+
+---
+

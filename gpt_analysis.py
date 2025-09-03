@@ -1,179 +1,185 @@
+# file: gpt_analysis.py
+
 from openai import OpenAI
 import streamlit as st
 import os
 from dotenv import load_dotenv
+from typing import Dict, Any
+import pandas as pd # 'pd'를 사용하기 위해 pandas를 import합니다.
 
+# .env 파일 로드 (파일이 없어도 에러 발생 안 함)
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-
-def analyze_portfolio_gpt(portfolio_data, performance_metrics, risk_metrics):
-    """GPT를 사용하여 포트폴리오를 분석합니다."""
-    prompt = f"""
-    Given the following portfolio data and metrics:
-    
-    Portfolio composition:
-    {', '.join([f"{etf}: {data['weight']*100:.2f}%" for etf, data in portfolio_data.items()])}
-    
-    Performance metrics:
-    Annual Return: {performance_metrics['Annual Return']*100:.2f}%
-    Annual Volatility: {performance_metrics['Annual Volatility']*100:.2f}%
-    Sharpe Ratio: {performance_metrics['Sharpe Ratio']:.2f}
-    
-    Risk metrics:
-    Beta: {risk_metrics['Beta']:.2f}
-    Alpha: {risk_metrics['Alpha']*100:.2f}%
-    Max Drawdown: {risk_metrics['Max Drawdown']*100:.2f}%
-    Value at Risk (95%): {risk_metrics['Value at Risk (95%)']*100:.2f}%
-    
-    Please provide a comprehensive analysis of this portfolio, including:
-    1. An overview of the portfolio's performance and risk profile
-    2. Strengths and weaknesses of the current asset allocation
-    3. Suggestions for potential improvements or rebalancing
-    4. Any notable trends or patterns in the portfolio's behavior
-    5. Recommendations for the investor based on this analysis
-    
-    Please structure your response in clear sections and provide specific, actionable advice.
-    """
-    
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a highly experienced financial analyst specializing in ETF portfolio analysis. Provide your analysis in Korean, ensuring it is clear, concise, and tailored for both novice and experienced investors."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        print(f"Error in GPT analysis: {str(e)}")
-        return "GPT 분석 중 오류가 발생했습니다. 나중에 다시 시도해 주세요."
-
-def get_gpt_analysis(prompt):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a highly experienced ETF investment analyst with deep knowledge of global markets and various ETF strategies. Provide your responses in Korean, ensuring they are clear, concise, and tailored for both novice and experienced investors. Always consider current market conditions and potential future scenarios in your analysis."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        print(f"API call error: {str(e)}")
+@st.cache_resource
+def get_openai_client():
+    """OpenAI API 클라이언트를 생성하고 캐시합니다."""
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        st.error("OPENAI_API_KEY 환경변수가 설정되지 않았습니다. .env 파일을 확인해주세요.")
         return None
+    return OpenAI(api_key=api_key)
 
-def analyze_financials_with_gpt(ticker, financial_data):
-    """GPT를 사용하여 티커의 재무 정보를 분석합니다."""
-    prompt = f"""
-    Given the following financial data for {ticker}:
-
-    - Market Cap: {financial_data.get('marketCap', 'N/A')}
-    - Total Revenue: {financial_data.get('totalRevenue', 'N/A')}
-    - Total Cash: {financial_data.get('totalCash', 'N/A')}
-    - EBITDA: {financial_data.get('ebitda', 'N/A')}
-    - Debt to Equity Ratio: {financial_data.get('debtToEquity', 'N/A')}
-    - PE Ratio: {financial_data.get('trailingPE', 'N/A')}
-    - PB Ratio: {financial_data.get('priceToBook', 'N/A')}
-    - Dividend Yield: {financial_data.get('dividendYield', 'N/A')}%
-
-    Please analyze this data and provide insights on:
-    1. The company's financial health.
-    2. Risks and opportunities based on the given data.
-    3. Key strengths and weaknesses in comparison to industry averages.
-    4. Recommendations for an investor looking at this company in the current market environment.
+def get_gpt_analysis(prompt: str) -> str:
+    """주어진 프롬프트로 GPT-4o mini 모델에 분석을 요청합니다."""
+    client = get_openai_client()
+    if not client:
+        return "OpenAI 클라이언트 초기화에 실패했습니다."
+    
+    system_prompt = """
+    당신은 글로벌 시장과 ETF 전략에 대한 깊은 지식을 가진 숙련된 금융 투자 분석가입니다. 
+    모든 답변은 한국어로 제공하며, 초보자와 숙련된 투자자 모두를 위해 명확하고 간결하게 작성해주세요. 
+    분석 시에는 현재 시장 상황과 잠재적인 미래 시나리오를 항상 고려해야 합니다.
     """
     
-    return get_gpt_analysis(prompt)
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        st.error(f"GPT API 호출 중 오류 발생: {e}")
+        return "GPT 분석 중 오류가 발생했습니다. API 키와 네트워크 상태를 확인해주세요."
 
-def analyze_etf_performance(etf_data):
+def analyze_financials_with_gpt(ticker: str, financial_data: Dict[str, Any]) -> str:
+    """GPT를 사용하여 기업 재무 정보를 분석합니다."""
+    # GPT에게 보낼 데이터 요약
+    data_summary = {
+        "시가총액": financial_data.get('marketCap'),
+        "총 매출": financial_data.get('totalRevenue'),
+        "P/E 비율": financial_data.get('trailingPE'),
+        "P/B 비율": financial_data.get('priceToBook'),
+        "배당 수익률": financial_data.get('dividendYield'),
+        "부채 비율(D/E)": financial_data.get('debtToEquity'),
+    }
+
     prompt = f"""
-Given the following ETF performance data: {etf_data}
+    ### 기업 재무 분석 요청: {ticker}
 
-1. Analyze the ETF's performance based on this data.
-2. Specifically mention key performance indicators (e.g., annual return, volatility, Sharpe ratio).
-3. Clearly explain the strengths and weaknesses of this ETF.
-4. Provide 3 actionable insights that would be valuable for investors.
-5. Briefly comment on the outlook for this ETF considering the current market conditions.
-"""
-    return get_gpt_analysis(prompt)
+    **주요 재무 데이터:**
+    ```json
+    {data_summary}
+    ```
 
-def analyze_risk_and_benchmark(risk_data):
-    prompt = f"""
-Based on the following risk and benchmark analysis data for the ETF: {risk_data}
-
-1. Interpret this data and explain the key risk indicators (e.g., beta, maximum drawdown, tracking error).
-2. Analyze how this ETF is performing compared to its benchmark.
-3. Present 5 key points that investors must consider.
-4. Explain what type of investor this ETF's risk level is suitable for.
-5. Predict how this ETF's risk profile might change in the current market conditions.
-"""
-    return get_gpt_analysis(prompt)
-
-def analyze_factor_exposure(factor_data):
-    prompt = f"""
-    Given the following factor exposure analysis results for the ETF: {factor_data}
-
-    1. Explain the exposure to each factor (market, size, value, growth, momentum, quality, low volatility, dividend, high yield, international, emerging markets) in detail.
-    2. Interpret what this factor exposure means from an investment strategy perspective.
-    3. Analyze how this factor exposure might affect the ETF's performance in different market conditions.
-    4. Explain the pros and cons of this factor exposure in the current market situation.
-    5. Considering this ETF's factor exposure, suggest what type of portfolio it would be suitable for.
-    6. Discuss how this ETF's factor exposure compares to its peers or the broader market.
+    **분석 요청 사항:**
+    1.  위 데이터를 바탕으로 이 기업의 **재무 건전성**을 평가해주세요.
+    2.  데이터에서 발견되는 **기회와 리스크 요인**은 무엇인가요?
+    3.  현재 시장 상황을 고려할 때, 이 기업에 대한 **투자자로서의 권장사항**을 제시해주세요.
     """
     return get_gpt_analysis(prompt)
 
-def compare_etfs(comparison_data):
+def analyze_etf_performance_with_gpt(ticker: str, performance_data: Dict[str, Any]) -> str:
+    """GPT를 사용하여 ETF 성과를 분석합니다."""
     prompt = f"""
-Based on the following comparison data for multiple ETFs: {comparison_data}
+    ### ETF 성과 분석 요청: {ticker}
 
-1. Summarize the main characteristics, advantages, and disadvantages of each ETF concisely.
-2. Compare and analyze the ETFs in terms of performance, risk, and cost.
-3. Explain specifically which type of investor each ETF is suitable for.
-4. Considering the current market conditions, provide your opinion on which ETF looks most promising.
-5. Evaluate the suitability of each ETF from both long-term and short-term investment perspectives.
-"""
-    return get_gpt_analysis(prompt)
+    **주요 성과 지표:**
+    ```json
+    {performance_data}
+    ```
 
-def analyze_macro_correlation(correlation_data):
-    prompt = f"""
-    Given the following correlation data between the ETF and macroeconomic indicators: {correlation_data}
-
-    Please provide a comprehensive analysis in Korean, addressing the following points:
-
-    1. Interpret the correlation between each macroeconomic indicator (S&P 500, 10Y Treasury Yield, VIX, Gold, Oil, USD Index, Inflation Expectation, Real Estate, Consumer Sentiment, Manufacturing PMI, Unemployment Rate, Corporate Bond Spread) and the ETF specifically.
-    2. Analyze how these correlations might change under different market conditions (e.g., economic expansion, recession, high inflation, low interest rates).
-    3. Explain how these correlations might influence investment decisions. Provide specific examples of how an investor might use this information.
-    4. Considering the current economic situation and the observed correlations, analyze the short-term (3-6 months) and long-term (1-3 years) outlook for this ETF.
-    5. Based on historical trends and current economic indicators, predict potential changes in key macroeconomic indicators over the next 6-12 months. Then, forecast how these changes might affect the ETF's performance.
-    6. Suggest how this ETF might play a role in hedging macroeconomic risks in a portfolio.
-    7. Discuss any limitations of this correlation-based analysis and suggest additional factors or data that could provide a more comprehensive understanding of the ETF's relationship with macroeconomic conditions.
+    **분석 요청 사항:**
+    1.  이 ETF의 **성과를 핵심 지표(수익률, 변동성, 샤프 비율)를 중심으로 해석**해주세요.
+    2.  이 ETF의 **강점과 약점**은 무엇이라고 생각하나요?
+    3.  투자자에게 도움이 될 만한 **실질적인 인사이트 3가지**를 제시해주세요.
     """
     return get_gpt_analysis(prompt)
 
-def get_etf_recommendation(etf_data, risk_profile):
+def analyze_risk_with_gpt(ticker: str, risk_data: Dict[str, Any]) -> str:
+    """GPT를 사용하여 ETF 리스크를 분석합니다."""
     prompt = f"""
-Based on the following ETF data: {etf_data}
-And considering an investor with a {risk_profile} risk profile,
+    ### ETF 리스크 분석 요청: {ticker}
 
-1. Would you recommend to buy, hold, or sell this ETF? Explain your reasoning in detail.
-2. Predict the expected performance for the next 6 months, 1 year, and 3 years with specific figures.
-3. Explain 3 major risks associated with this ETF, and assess the likelihood and impact of each risk.
-4. Suggest what role this ETF could play in the investor's portfolio.
-5. Advise on 3 points to be cautious about when investing in this ETF in the current market conditions.
-"""
+    **주요 리스크 지표:**
+    ```json
+    {risk_data}
+    ```
+
+    **분석 요청 사항:**
+    1.  **베타, 알파, 최대 낙폭 등의 핵심 리스크 지표**가 의미하는 바를 쉽게 설명해주세요.
+    2.  이 ETF는 **어떤 투자 성향의 투자자에게 적합**한가요?
+    3.  현재 시장 상황에서 투자자가 **반드시 고려해야 할 5가지 핵심 포인트**를 짚어주세요.
+    """
     return get_gpt_analysis(prompt)
 
-def predict_etf_performance(etf_data, market_conditions):
+def analyze_factor_with_gpt(ticker: str, factor_data: pd.Series) -> str:
+    """GPT를 사용하여 ETF 팩터 노출도를 분석합니다."""
     prompt = f"""
-Given the following ETF data: {etf_data}
-And considering these market conditions: {market_conditions}
+    ### ETF 팩터 노출도 분석 요청: {ticker}
 
-1. Predict the expected performance of this ETF over the next 6-12 months with specific figures (e.g., expected return range).
-2. Explain 3 scenarios that could positively impact this ETF's performance and 3 that could negatively impact it.
-3. Analyze how the volatility and risk level of this ETF are expected to change.
-4. Explain whether it's appropriate to include this ETF in a current portfolio and why.
-5. Advise on investment strategies or timing to maximize the performance of this ETF.
-"""
+    **팩터 노출도 분석 결과 (회귀 계수):**
+    ```
+    {factor_data.to_string()}
+    ```
+
+    **분석 요청 사항:**
+    1.  각 팩터(Market, Size, Value 등)에 대한 **노출도가 의미하는 바를 투자 전략 관점에서 해석**해주세요.
+    2.  이러한 팩터 구성이 **다양한 시장 국면(상승장, 하락장, 횡보장)에서 ETF 성과에 어떤 영향을 미칠지** 분석해주세요.
+    3.  현재 시장 상황에서 이 ETF의 **팩터 구성이 갖는 장단점**은 무엇인가요?
+    """
+    return get_gpt_analysis(prompt)
+
+def compare_etfs_with_gpt(comparison_data: pd.DataFrame) -> str:
+    """GPT를 사용하여 여러 ETF를 비교 분석합니다."""
+    prompt = f"""
+    ### 다수 ETF 비교 분석 요청
+
+    **비교 데이터:**
+    ```
+    {comparison_data.to_markdown(index=False)}
+    ```
+
+    **분석 요청 사항:**
+    1.  각 ETF의 **주요 특징과 장단점을 간결하게 요약**해주세요.
+    2.  **성과, 리스크, 비용 측면에서 ETF들을 비교 분석**하고, 어떤 ETF가 가장 유망해 보이는지 의견을 제시해주세요.
+    3.  각 ETF가 **어떤 유형의 투자자에게 적합할지** 구체적으로 설명해주세요.
+    """
+    return get_gpt_analysis(prompt)
+
+def analyze_macro_with_gpt(ticker: str, correlation_data: pd.DataFrame) -> str:
+    """GPT를 사용하여 ETF와 거시 경제 지표의 상관관계를 분석합니다."""
+    prompt = f"""
+    ### ETF-거시경제 지표 상관관계 분석 요청: {ticker}
+
+    **상관관계 행렬:**
+    ```
+    {correlation_data.to_string()}
+    ```
+
+    **분석 요청 사항:**
+    1.  **주요 거시경제 지표(S&P 500, 10년물 국채, VIX 등)와 ETF 수익률 간의 상관관계**를 해석해주세요.
+    2.  이러한 상관관계가 **투자 결정에 어떤 영향을 미칠 수 있는지** 구체적인 예시를 들어 설명해주세요.
+    3.  현재 경제 상황과 관찰된 상관관계를 고려할 때, 이 ETF의 **단기(3-6개월) 및 장기(1-3년) 전망**을 분석해주세요.
+    """
+    return get_gpt_analysis(prompt)
+
+def analyze_portfolio_with_gpt(performance_metrics: Dict, risk_metrics: Dict, portfolio_df: pd.DataFrame) -> str:
+    """GPT를 사용하여 포트폴리오 전체를 종합적으로 분석합니다."""
+    prompt = f"""
+    ### 포트폴리오 종합 분석 요청
+
+    **포트폴리오 구성:**
+    ```
+    {portfolio_df[['ETF', 'Weight']].to_markdown(index=False)}
+    ```
+
+    **주요 성과 지표:**
+    - 연간 수익률: {performance_metrics['Annual Return'] * 100:.2f}%
+    - 연간 변동성: {performance_metrics['Annual Volatility'] * 100:.2f}%
+    - 샤프 비율: {performance_metrics['Sharpe Ratio']:.2f}
+
+    **주요 리스크 지표:**
+    - 베타: {risk_metrics['Beta']:.2f}
+    - 연환산 알파: {risk_metrics['Alpha (Annualized)'] * 100:.2f}%
+    - 최대 낙폭: {risk_metrics['Max Drawdown'] * 100:.2f}%
+    - 95% VaR: {risk_metrics['Value at Risk (95%)'] * 100:.2f}%
+
+    **분석 요청 사항:**
+    1.  포트폴리오의 **전반적인 성과와 리스크 프로필을 종합적으로 평가**해주세요.
+    2.  현재 자산 배분의 **강점과 약점**은 무엇인가요?
+    3.  **개선이나 리밸런싱을 위한 구체적이고 실행 가능한 제안**을 3가지 이상 제시해주세요.
+    """
     return get_gpt_analysis(prompt)
